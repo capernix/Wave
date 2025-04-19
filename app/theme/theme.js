@@ -1,47 +1,69 @@
 export const theme = {
   colors: {
-    // Primary colors
-    primary: '#FFFFFF',     // Pure white
-    secondary: '#F7F7F7',   // Light gray
-    accent: {
-      green: '#2ECC71',     // Bright green
-      orange: '#FF9F43',    // Warm orange
-      blue: '#3498DB',      // Water blue
-      yellow: '#F1C40F',    // Progress yellow
+    // Core section colors
+    primary: {
+      teal: '#008080',        // Mood Growth - Teal
+      lavender: '#E6E6FA',    // Mood Growth - Lavender
+      orange: '#FFA500',      // Action - Orange
+      navy: '#003366',        // Action - Navy Blue
     },
-
     // Background colors
     background: {
-      primary: '#FFFFFF',   // Pure white
-      secondary: '#F7F7F7', // Light gray
-      tertiary: '#E5E5E5',  // Slightly darker gray
+      primary: '#FFFFFF',     // Pure white
+      secondary: '#F8F8FF',   // Very light lavender
+      tertiary: '#F5F5F5',    // Light gray
+      mood: '#F0F8FF',        // Light teal tint
+      action: '#F5F5FF',      // Light navy tint
+      card: '#FFFFFF',        // Card backgrounds
+      modal: 'rgba(0,0,0,0.5)', // Modal overlay
     },
-
     // Text colors
     text: {
-      primary: '#000000',   // Black text
-      secondary: '#555555', // Dark gray
-      tertiary: '#888888',  // Medium gray
-      inverse: '#FFFFFF',   // White text
+      primary: '#1A1A1A',     // Almost black
+      secondary: '#4A4A4A',   // Dark gray
+      tertiary: '#666666',    // Medium gray
+      inverse: '#FFFFFF',     // White text
+      mood: '#008080',        // Teal for mood text
+      action: '#003366',      // Navy for action text
+      placeholder: '#999999', // Placeholder text
     },
-
     // Status colors
     status: {
-      success: '#2ECC71',   // Green
-      warning: '#FF9F43',   // Orange
-      error: '#FF5E57',     // Red
-      info: '#3498DB',      // Blue
+      success: '#008080',     // Teal for success
+      info: '#E6E6FA',        // Lavender for info
+      warning: '#FFA500',     // Orange for warning
+      error: '#FF5E57',       // Red for error
+      action: '#003366',      // Navy for action
     },
-
+    // UI Elements
+    border: {
+      light: '#E6E6FA',       // Light lavender border
+      medium: '#D3D3D3',      // Medium gray border
+      dark: '#003366',        // Navy border
+    },
     // Special effects
     effects: {
-      glass: 'rgba(255,255,255,0.8)',
+      glass: 'rgba(230,230,250,0.8)',  // Lavender glass effect
       shadow: 'rgba(0,0,0,0.1)',
-      overlay: 'rgba(0,0,0,0.05)',
-      cardGlow: 'rgba(46,204,113,0.15)', // Green glow for cards
+      overlay: 'rgba(0,0,0,0.3)',
+      moodGlow: 'rgba(0,128,128,0.1)', // Teal glow for Mood
+      actionGlow: 'rgba(0,51,102,0.1)', // Navy glow for Action
+    },
+    // Interactive elements
+    interactive: {
+      button: {
+        primary: '#008080',   // Teal for primary buttons
+        secondary: '#E6E6FA', // Lavender for secondary buttons
+        action: '#FFA500',    // Orange for action buttons
+        disabled: '#CCCCCC',  // Gray for disabled state
+      },
+      input: {
+        background: '#FFFFFF',
+        border: '#E6E6FA',
+        focus: '#008080',
+      },
     }
   },
-
   spacing: {
     xs: 4,
     sm: 8,
@@ -50,7 +72,6 @@ export const theme = {
     xl: 32,
     xxl: 48,
   },
-
   typography: {
     sizes: {
       xs: 12,
@@ -65,11 +86,13 @@ export const theme = {
       light: '300',
       regular: '400',
       medium: '500',
-      semibold: '600',
       bold: '700',
-    }
+    },
+    fonts: {
+      primary: 'System',
+      secondary: 'System',
+    },
   },
-
   borderRadius: {
     sm: 8,
     md: 12,
@@ -78,56 +101,53 @@ export const theme = {
     xxl: 24,
     round: 9999,
   },
-
   // Shadows for different elevations
   shadows: {
     sm: {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
+      shadowOpacity: 0.1,
       shadowRadius: 3,
       elevation: 3,
     },
     md: {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
+      shadowOpacity: 0.15,
       shadowRadius: 6,
       elevation: 6,
     },
     lg: {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.35,
+      shadowOpacity: 0.2,
       shadowRadius: 10,
       elevation: 10,
     }
   },
-
   // Card styles
   cards: {
     primary: {
-      backgroundColor: '#F7F7F7',
+      backgroundColor: '#FFFFFF',
       borderRadius: 16,
       padding: 16,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
+      shadowOpacity: 0.1,
       shadowRadius: 6,
       elevation: 6,
     },
     interactive: {
-      backgroundColor: '#E5E5E5',
+      backgroundColor: '#FFFFFF',
       borderRadius: 16,
       padding: 16,
-      shadowColor: '#2ECC71',
+      shadowColor: '#008080',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
+      shadowOpacity: 0.1,
       shadowRadius: 8,
       elevation: 8,
     }
   },
-
   // Animation durations
   animation: {
     fast: 200,

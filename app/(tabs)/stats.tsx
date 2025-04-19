@@ -65,7 +65,7 @@ export default function StatsScreen() {
               <StatCard
                 title="Total Completions"
                 value={currentStats.completions}
-                icon="check-circle"
+                icon="check"
               />
             </View>
             
@@ -126,10 +126,11 @@ export default function StatsScreen() {
 }
 
 // Stat card component
+type StatCardIcon = 'list' | 'check' | 'fire' | 'trophy';
 interface StatCardProps {
   title: string;
   value: string | number;
-  icon: string;
+  icon: StatCardIcon;
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon }) => {

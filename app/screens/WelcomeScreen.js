@@ -104,7 +104,7 @@ export default function WelcomeScreen() {
     ]).start();
 
     setTimeout(() => {
-      router.replace('/login');
+      router.push('/login');
     }, 2000);
   };
 
@@ -163,7 +163,7 @@ export default function WelcomeScreen() {
               onPress={handleGetStarted}
             >
               <LinearGradient
-                colors={[theme.colors.accent.green, theme.colors.accent.green]}
+                colors={[theme.colors.primary.teal, theme.colors.primary.teal]}
                 style={styles.buttonGradient}
               >
                 <Text style={styles.getStartedText}>Get Started</Text>

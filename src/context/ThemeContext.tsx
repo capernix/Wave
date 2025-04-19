@@ -9,20 +9,20 @@ type TimeOfDay = 'morning' | 'day' | 'evening' | 'night';
 // Define theme colors for each mode
 const themes = {
   growth: {
-    primary: '#8BC34A',
-    background: '#F5F8F2',
-    text: '#333333',
-    accent: '#4CAF50',
-    card: '#FFFFFF',
-    border: '#DCEDC8',
+    primary: '#6DB193',      // Green
+    background: '#F9F9F9',   // Off-White
+    text: '#333333',         // Dark text
+    accent: '#6DB193',       // Green accent
+    card: '#FFFFFF',         // White cards
+    border: '#6DB193',       // Green border
   },
   action: {
-    primary: '#FF5722',
-    background: '#2B2B2B',
-    text: '#F5F5F5',
-    accent: '#FF9800',
-    card: '#3E3E3E',
-    border: '#4A4A4A',
+    primary: '#FF9800',      // Orange
+    background: '#37474F',   // Gray
+    text: '#FFFFFF',         // White text
+    accent: '#FF9800',       // Orange accent
+    card: '#455A64',         // Lighter gray for cards
+    border: '#263238',       // Darker gray for borders
   },
 };
 
@@ -171,11 +171,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const colorScheme = useColorScheme();
   
-  // Animation values - Keep separate values for different animation drivers
-  // This animation value is for color interpolation (non-native)
+  // Animation values
   const transitionProgress = useRef(new Animated.Value(0)).current;
-  
-  // This animation value is for native-driver animations (transforms, opacity, etc)
   const nativeTransitionProgress = useRef(new Animated.Value(0)).current;
   
   // Initialize from in-memory preferences
@@ -285,7 +282,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   };
   
-  // Toggle between modes with animation
+  // Toggle between modes with enhanced animation
   const toggleMode = async () => {
     try {
       const newMode = mode === 'growth' ? 'action' : 'growth';
@@ -293,28 +290,30 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       
       const toValue = newMode === 'growth' ? 0 : 1;
       
-      // Run separate animations with different useNativeDriver settings
+      // Enhanced parallel animations for smoother transitions
       const animationPromise = new Promise<void>((resolve) => {
-        // Run color animations with useNativeDriver: false
-        Animated.timing(transitionProgress, {
-          toValue,
-          duration: 600,
-          useNativeDriver: false, // Must be false for color interpolation
-        }).start();
-        
-        // Run transform animations with useNativeDriver: true
-        Animated.timing(nativeTransitionProgress, {
-          toValue,
-          duration: 600,
-          useNativeDriver: true, // Use native driver for transforms
-        }).start(({ finished }) => {
-          resolve();
+        Animated.parallel([
+          // Color transition animation
+          Animated.timing(transitionProgress, {
+            toValue,
+            duration: 400, // Slightly faster for colors
+            useNativeDriver: false,
+          }),
+          // Transform and opacity animations
+          Animated.timing(nativeTransitionProgress, {
+            toValue,
+            duration: 500, // Slightly longer for movement
+            useNativeDriver: true,
+          })
+        ]).start(({ finished }) => {
+          if (finished) {
+            resolve();
+          }
         });
       });
       
       await animationPromise;
       
-      // Update mode state and finish transition
       setMode(newMode);
       setIsTransitioning(false);
       
@@ -331,13 +330,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         lastUpdated: Date.now()
       };
     } catch (error) {
-      // Fallback in case of error - still update the mode
       console.error('Error during mode transition:', error);
       const newMode = mode === 'growth' ? 'action' : 'growth';
       setMode(newMode);
       setIsTransitioning(false);
       
-      // Save to in-memory preferences
       userPreferences = {
         ...userPreferences,
         currentMode: newMode,
@@ -377,8 +374,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       audioEnabled,
       toggleAudio,
       isAudioPlaying,
-      transitionProgress, // Fix: Use the non-native animation for color interpolation
-      nativeTransitionProgress, // Keep native-driven animation for transforms
+      transitionProgress,
+      nativeTransitionProgress,
       isTransitioning
     }}>
       {children}

@@ -28,6 +28,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <Stack>
+        <Stack.Screen name="WelcomeScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="LoginScreen" options={{ title: 'Login' }} />
+        <Stack.Screen name="SignupScreen" options={{ title: 'Sign Up' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>

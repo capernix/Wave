@@ -137,7 +137,7 @@ const SplashScreen = () => {
             onPress={handleNext}
           >
             <LinearGradient
-              colors={[theme.colors.accent.green, theme.colors.accent.green]}
+              colors={[theme.colors.primary.teal, theme.colors.primary.teal]}
               style={styles.buttonGradient}
             >
               <Text style={styles.buttonText}>
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   },
   paginationDotActive: {
     width: theme.spacing.lg,
-    backgroundColor: theme.colors.accent.green,
+    backgroundColor: theme.colors.primary.teal,
   },
   buttonContainer: {
     width: '100%',
