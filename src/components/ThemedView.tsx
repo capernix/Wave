@@ -1,23 +1,26 @@
 import React from 'react';
-import { StyleSheet, View, ViewProps } from 'react-native';
+import { Animated, StyleSheet, View, ViewProps } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 interface ThemedViewProps extends ViewProps {
   variant?: 'primary' | 'background' | 'card';
+  animated?: boolean;
 }
 
 /**
  * A themed View component that adapts to the current mode
+ * Now supports animated transitions between modes
  */
 const ThemedView: React.FC<ThemedViewProps> = ({
   style,
   variant = 'background',
+  animated = true, // Default to animated transitions
   children,
   ...rest
 }) => {
-  const { theme } = useTheme();
+  const { theme, animatedTheme } = useTheme();
   
-  // Get color based on variant
+  // Get color based on variant (non-animated)
   const getBackgroundColor = () => {
     switch (variant) {
       case 'primary':
@@ -30,6 +33,36 @@ const ThemedView: React.FC<ThemedViewProps> = ({
     }
   };
   
+  // Get animated color based on variant
+  const getAnimatedBackgroundColor = () => {
+    switch (variant) {
+      case 'primary':
+        return animatedTheme.primary;
+      case 'card':
+        return animatedTheme.card;
+      case 'background':
+      default:
+        return animatedTheme.background;
+    }
+  };
+  
+  // Use animated view if animations are enabled
+  if (animated) {
+    return (
+      <Animated.View
+        style={[
+          styles.container,
+          { backgroundColor: getAnimatedBackgroundColor() },
+          style
+        ]}
+        {...rest}
+      >
+        {children}
+      </Animated.View>
+    );
+  }
+  
+  // Use regular view if animations are disabled
   return (
     <View
       style={[

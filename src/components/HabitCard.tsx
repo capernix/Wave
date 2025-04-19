@@ -11,6 +11,7 @@ type HabitCardProps = {
   streak?: number;
   onToggleComplete?: () => void;
   onPress?: () => void;
+  preferences?: any;
 };
 
 /**
@@ -21,7 +22,8 @@ const HabitCard: React.FC<HabitCardProps> = ({
   completed = false,
   streak = 0,
   onToggleComplete,
-  onPress
+  onPress,
+  preferences
 }) => {
   const { theme, mode } = useTheme();
   const [animatedValue] = useState(new Animated.Value(0));
@@ -92,9 +94,35 @@ const HabitCard: React.FC<HabitCardProps> = ({
         return 'calendar-check-o';
       case 'reflection':
         return 'pencil';
+      case 'creativity':
+        return 'paint-brush';
+      case 'health':
+        return 'medkit';
       default:
         return 'star';
     }
+  };
+
+  // Get priority color
+  const getPriorityColor = () => {
+    switch (habit.priority) {
+      case 'high':
+        return '#E53935'; // Red
+      case 'medium':
+        return '#FB8C00'; // Orange
+      case 'low':
+        return '#43A047'; // Green
+      default:
+        return '#FB8C00'; // Default to medium priority (orange)
+    }
+  };
+
+  // Format days of week for display
+  const formatDaysOfWeek = () => {
+    if (!habit.daysOfWeek || habit.frequency !== 'weekly') return '';
+    
+    const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    return habit.daysOfWeek.map(day => dayLabels[day]).join(', ');
   };
 
   // Determine if this is a mode-matched habit
@@ -125,6 +153,9 @@ const HabitCard: React.FC<HabitCardProps> = ({
       ? theme.text
       : 'rgba(128, 128, 128, 0.8)';
 
+  // Priority indicator color
+  const priorityColor = getPriorityColor();
+
   return (
     <Animated.View
       style={[
@@ -141,6 +172,10 @@ const HabitCard: React.FC<HabitCardProps> = ({
         activeOpacity={0.7}
         onPress={handlePress}
       >
+        <View style={styles.priorityIndicator}>
+          <View style={[styles.priorityBar, { backgroundColor: priorityColor }]} />
+        </View>
+        
         <View style={styles.content}>
           <View style={styles.iconContainer}>
             <FontAwesome 
@@ -193,11 +228,28 @@ const HabitCard: React.FC<HabitCardProps> = ({
                 </View>
               )}
               
-              {habit.frequency ? (
+              {/* Display frequency */}
+              <View style={styles.frequencyContainer}>
                 <Text style={[styles.frequencyText, { color: textColor }]}>
-                  {habit.frequency}
+                  {habit.frequency === 'weekly' ? 'Weekly' : 'Daily'}
                 </Text>
-              ) : null}
+                
+                {habit.frequency === 'weekly' && habit.daysOfWeek && (
+                  <Text style={[styles.daysText, { color: textColor }]}>
+                    {formatDaysOfWeek()}
+                  </Text>
+                )}
+              </View>
+              
+              {/* Preference indicator */}
+              {preferences && preferences.idealTimeOfDay && (
+                <View style={styles.preferenceContainer}>
+                  <FontAwesome name="clock-o" size={12} color={textColor} style={styles.preferenceIcon} />
+                  <Text style={[styles.preferenceText, { color: textColor }]}>
+                    {preferences.idealTimeOfDay}
+                  </Text>
+                </View>
+              )}
               
               {isMatchingMode && !completed && (
                 <View style={styles.audioVisualizerContainer}>
@@ -257,9 +309,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
+    flexDirection: 'row',
+  },
+  priorityIndicator: {
+    width: 4,
+  },
+  priorityBar: {
+    width: 4,
+    height: '100%',
   },
   touchable: {
-    flexDirection: 'row',
+    flex: 1,
     padding: 16,
   },
   content: {
@@ -292,6 +352,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   streakContainer: {
     flexDirection: 'row',
@@ -303,7 +364,29 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     color: '#FF9800',
   },
+  frequencyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   frequencyText: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginRight: 4,
+  },
+  daysText: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  preferenceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  preferenceIcon: {
+    marginRight: 4,
+  },
+  preferenceText: {
     fontSize: 12,
     opacity: 0.6,
   },

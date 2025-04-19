@@ -17,15 +17,19 @@ export const useAudioVisualization = (
 ) => {
   const { mode, audioEnabled, isAudioPlaying } = useTheme();
   
-  // Animation values
+  // Animation values - create fresh references to avoid duplication issues
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const barsAnim = useRef([
-    new Animated.Value(0.3),
-    new Animated.Value(0.5),
-    new Animated.Value(0.7),
-    new Animated.Value(0.4),
-    new Animated.Value(0.6)
-  ]).current;
+  
+  // Create exactly 5 bar animations
+  const bar1 = useRef(new Animated.Value(0.3)).current;
+  const bar2 = useRef(new Animated.Value(0.5)).current;
+  const bar3 = useRef(new Animated.Value(0.7)).current;
+  const bar4 = useRef(new Animated.Value(0.4)).current;
+  const bar5 = useRef(new Animated.Value(0.6)).current;
+  
+  // Collect bars in an array for easier handling
+  const barsAnim = [bar1, bar2, bar3, bar4, bar5];
+  
   const waveAnim = useRef(new Animated.Value(0)).current;
   
   // Animation state
@@ -33,9 +37,22 @@ export const useAudioVisualization = (
   
   // Start animation loops when audio is playing
   useEffect(() => {
+    let animationCleanup: any = null;
+    
     if (audioEnabled && isAudioPlaying) {
       setIsAnimating(true);
-      startAnimations();
+      
+      // Different animations depending on type
+      const speedMultiplier = mode === 'growth' ? 1 : 1.5;
+      const amplitudeMultiplier = Math.min(1, Math.max(0.1, intensity));
+      
+      if (type === 'circle') {
+        animationCleanup = startPulseAnimation(speedMultiplier, amplitudeMultiplier);
+      } else if (type === 'bars') {
+        animationCleanup = startBarsAnimation(speedMultiplier, amplitudeMultiplier);
+      } else if (type === 'wave') {
+        animationCleanup = startWaveAnimation(speedMultiplier, amplitudeMultiplier);
+      }
     } else {
       setIsAnimating(false);
       // Reset animations
@@ -62,91 +79,87 @@ export const useAudioVisualization = (
     
     return () => {
       // Clean up animations
+      if (animationCleanup) {
+        animationCleanup();
+      }
       pulseAnim.stopAnimation();
       barsAnim.forEach(anim => anim.stopAnimation());
       waveAnim.stopAnimation();
     };
-  }, [audioEnabled, isAudioPlaying, mode]);
-  
-  // Initialize the animations
-  const startAnimations = () => {
-    // Adjust animation speed based on mode
-    const speedMultiplier = mode === 'growth' ? 1 : 1.5;
-    const amplitudeMultiplier = Math.min(1, Math.max(0.1, intensity));
-    
-    // Different animations depending on type
-    switch (type) {
-      case 'circle':
-        animatePulse(speedMultiplier, amplitudeMultiplier);
-        break;
-      case 'bars':
-        animateBars(speedMultiplier, amplitudeMultiplier);
-        break;
-      case 'wave':
-        animateWave(speedMultiplier, amplitudeMultiplier);
-        break;
-      default:
-        animateBars(speedMultiplier, amplitudeMultiplier);
-    }
-  };
+  }, [audioEnabled, isAudioPlaying, mode, type, intensity]);
   
   // Pulse animation for circle visualization
-  const animatePulse = (speed: number, amplitude: number) => {
-    if (!isAnimating) return;
+  const startPulseAnimation = (speed: number, amplitude: number) => {
+    const animatePulse = () => {
+      if (!isAnimating) return;
+      
+      // Get random pulse size between 0.85 and 1.15
+      const pulseSize = 1 + ((Math.random() * 0.3 - 0.15) * amplitude);
+      const pulseDuration = (1000 + Math.random() * 500) / speed;
+      
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: pulseSize,
+          duration: pulseDuration,
+          useNativeDriver: true
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: pulseDuration,
+          useNativeDriver: true
+        })
+      ]).start(() => {
+        animatePulse();
+      });
+    };
     
-    // Get random pulse size between 0.85 and 1.15
-    const pulseSize = 1 + ((Math.random() * 0.3 - 0.15) * amplitude);
-    const pulseDuration = (1000 + Math.random() * 500) / speed;
+    // Start the pulse animation
+    animatePulse();
     
-    Animated.sequence([
-      Animated.timing(pulseAnim, {
-        toValue: pulseSize,
-        duration: pulseDuration,
-        useNativeDriver: true
-      }),
-      Animated.timing(pulseAnim, {
-        toValue: 1,
-        duration: pulseDuration,
-        useNativeDriver: true
-      })
-    ]).start(() => {
-      if (isAnimating) {
-        animatePulse(speed, amplitude);
-      }
-    });
+    // Return cleanup function
+    return () => {};
   };
   
   // Bar animation for equalizer-style visualization
-  const animateBars = (speed: number, amplitude: number) => {
-    if (!isAnimating) return;
+  const startBarsAnimation = (speed: number, amplitude: number) => {
+    let shouldContinue = true;
     
-    // Animate each bar with a different random height
-    const animations = barsAnim.map(anim => {
-      // Random height between 0.2 and 1.0
-      const barHeight = 0.2 + (Math.random() * 0.8 * amplitude);
-      const barDuration = (200 + Math.random() * 300) / speed;
+    const animateBars = () => {
+      if (!shouldContinue) return;
       
-      return Animated.timing(anim, {
-        toValue: barHeight,
-        duration: barDuration,
-        useNativeDriver: true
+      // Animate each bar with a different random height
+      const animations = barsAnim.map(anim => {
+        // Random height between 0.2 and 1.0
+        const barHeight = 0.2 + (Math.random() * 0.8 * amplitude);
+        const barDuration = (200 + Math.random() * 300) / speed;
+        
+        return Animated.timing(anim, {
+          toValue: barHeight,
+          duration: barDuration,
+          useNativeDriver: true
+        });
       });
-    });
+      
+      // Run all animations in parallel, then call this function again
+      Animated.parallel(animations).start(() => {
+        if (shouldContinue) {
+          animateBars();
+        }
+      });
+    };
     
-    // Run all animations in parallel, then call this function again
-    Animated.parallel(animations).start(() => {
-      if (isAnimating) {
-        animateBars(speed, amplitude);
-      }
-    });
+    // Start the bars animation
+    animateBars();
+    
+    // Return cleanup function
+    return () => {
+      shouldContinue = false;
+    };
   };
   
   // Wave animation
-  const animateWave = (speed: number, amplitude: number) => {
-    if (!isAnimating) return;
-    
-    // Continuous loop for wave animation
-    Animated.loop(
+  const startWaveAnimation = (speed: number, amplitude: number) => {
+    const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(waveAnim, {
           toValue: 2 * Math.PI,
@@ -159,7 +172,14 @@ export const useAudioVisualization = (
           useNativeDriver: true
         })
       ])
-    ).start();
+    );
+    
+    animation.start();
+    
+    // Return cleanup function
+    return () => {
+      animation.stop();
+    };
   };
   
   return {

@@ -1,6 +1,8 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AudioControls from '../../src/components/AudioControls';
+import AudioVisualizer from '../../src/components/AudioVisualizer';
 import ModeToggleButton from '../../src/components/ModeToggleButton';
 import ThemedText from '../../src/components/ThemedText';
 import ThemedView from '../../src/components/ThemedView';
@@ -8,7 +10,7 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { generateEncouragementMessage } from '../../src/services/ApiService';
 
 export default function HomeScreen() {
-  const { theme, mode, audioEnabled, toggleAudio } = useTheme();
+  const { theme, mode, audioEnabled, toggleAudio, isAudioPlaying } = useTheme();
   const [message, setMessage] = React.useState<string>('');
   
   // Get encouragement message on load and when mode changes
@@ -47,6 +49,21 @@ export default function HomeScreen() {
             
             <View style={styles.messageContainer}>
               <ThemedText style={styles.messageText}>{message}</ThemedText>
+            </View>
+            
+            {/* Audio visualizer */}
+            {isAudioPlaying && (
+              <View style={styles.audioVisualizerContainer}>
+                <AudioVisualizer 
+                  type={mode === 'growth' ? 'wave' : 'bars'} 
+                  size={120} 
+                  intensity={0.7}
+                />
+              </View>
+            )}
+            
+            <View style={styles.controlsRow}>
+              <AudioControls />
             </View>
           </View>
           
@@ -107,6 +124,17 @@ const styles = StyleSheet.create({
   messageText: {
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  audioVisualizerContainer: {
+    height: 130,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 15,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
   },
   infoSection: {
     marginTop: 40,

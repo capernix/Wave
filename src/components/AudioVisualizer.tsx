@@ -13,20 +13,18 @@ type AudioVisualizerProps = {
 /**
  * A component that visualizes audio with animations
  */
-const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
+const AudioVisualizer = React.memo(({
   type = 'bars',
   intensity = 0.5,
   size = 50,
   style = {},
-}) => {
+}: AudioVisualizerProps) => {
   const { theme, mode } = useTheme();
   const { isAnimating, pulseAnim, barsAnim, waveAnim } = useAudioVisualization(type, intensity);
   
   // Calculate dimensions based on size prop
   const width = size;
   const height = size;
-  const barWidth = Math.max(3, width / 10);
-  const barGap = Math.max(2, width / 20);
   
   // Render nothing if not animating
   if (!isAnimating) {
@@ -38,7 +36,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   // Choose color based on mode
   const visualizerColor = mode === 'growth' ? theme.primary : theme.accent;
   
-  // Render based on visualization type
+  // Circle visualization (for Growth mode)
   if (type === 'circle') {
     return (
       <View style={[styles.container, style, { width, height }]}>
@@ -46,8 +44,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
           style={[
             styles.circle,
             { 
-              width, 
-              height, 
+              width: width * 0.9, 
+              height: height * 0.9, 
               borderRadius: width / 2,
               borderColor: visualizerColor,
               transform: [{ scale: pulseAnim }],
@@ -58,12 +56,14 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     );
   }
   
+  // Wave visualization
   if (type === 'wave') {
-    // Create wave points
     const numPoints = 20;
-    const points = Array.from({ length: numPoints }, (_, i) => {
+    const points = [];
+    
+    for (let i = 0; i < numPoints; i++) {
       const x = (i / (numPoints - 1)) * width;
-      return (
+      points.push(
         <Animated.View
           key={`wave-point-${i}`}
           style={{
@@ -86,7 +86,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
           }}
         />
       );
-    });
+    }
     
     return (
       <View style={[styles.container, style, { width, height }]}>
@@ -95,32 +95,60 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     );
   }
   
-  // Default: bars visualization
-  const totalBarsWidth = (barWidth * barsAnim.length) + (barGap * (barsAnim.length - 1));
-  const startX = (width - totalBarsWidth) / 2;
+  // Bars visualization (for Action mode)
+  // Use the exact array length from the hook
+  const BAR_COUNT = barsAnim.length;
+  const barWidth = Math.max(2, width / 20);
+  const barGap = Math.max(2, width / 30);
+  const totalWidth = (barWidth * BAR_COUNT) + (barGap * (BAR_COUNT - 1));
+  const startX = (width - totalWidth) / 2;
+  const maxBarHeight = height * 0.6;
+  
+  // Generate one bar for each animation value
+  const bars = [];
+  for (let i = 0; i < BAR_COUNT; i++) {
+    // Instead of animating height directly, which isn't supported by native driver,
+    // use scaleY transform and a fixed height container
+    bars.push(
+      <View
+        key={`bar-${i}`}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: startX + (i * (barWidth + barGap)),
+          width: barWidth,
+          height: maxBarHeight, // Fixed maximum height
+          overflow: 'hidden',
+          alignItems: 'center',
+        }}
+      >
+        <Animated.View
+          style={{
+            width: barWidth,
+            height: maxBarHeight,
+            backgroundColor: visualizerColor,
+            borderRadius: barWidth / 2,
+            transform: [{
+              scaleY: barsAnim[i].interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.1, 1] // Scale from 10% to 100%
+              })
+            }],
+            // Position from the bottom
+            position: 'absolute',
+            bottom: 0,
+          }}
+        />
+      </View>
+    );
+  }
   
   return (
     <View style={[styles.container, style, { width, height }]}>
-      {barsAnim.map((anim, index) => (
-        <Animated.View
-          key={`bar-${index}`}
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: startX + index * (barWidth + barGap),
-            width: barWidth,
-            height: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [height * 0.1, height]
-            }),
-            backgroundColor: visualizerColor,
-            borderRadius: barWidth / 2,
-          }}
-        />
-      ))}
+      {bars}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
