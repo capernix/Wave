@@ -15,7 +15,9 @@ import {
   View
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import DataStore from '../utils/DataStore';
+import { createHabit } from '../database/database';
+// Import Flask service
+import * as FlaskServer from '../services/FlaskServer';
 
 // Helper function to safely trigger haptic feedback
 const triggerHaptic = (type) => {
@@ -39,122 +41,171 @@ const triggerHaptic = (type) => {
   }
 };
 
-// Category options
+// Category options using our database schema types
 const categories = [
-  { id: 'meditation', icon: 'leaf-outline', label: 'Meditation' },
-  { id: 'exercise', icon: 'fitness-outline', label: 'Exercise' },
-  { id: 'learning', icon: 'book-outline', label: 'Learning' },
-  { id: 'productivity', icon: 'checkbox-outline', label: 'Productivity' },
-  { id: 'health', icon: 'heart-outline', label: 'Health' },
-  { id: 'creativity', icon: 'color-palette-outline', label: 'Creativity' },
+  { id: 'Health', icon: 'heart-outline', label: 'Health' },
+  { id: 'Learning', icon: 'book-outline', label: 'Learning' },
+  { id: 'Creativity', icon: 'color-palette-outline', label: 'Creativity' },
+  { id: 'Productivity', icon: 'checkbox-outline', label: 'Productivity' },
 ];
 
-// Frequency options
-const frequencies = [
-  { id: 'daily', label: 'Daily' },
-  { id: 'weekly', label: 'Weekly' },
+// Time of day options
+const timeOfDayOptions = [
+  { id: 'Morning', label: 'Morning' },
+  { id: 'Afternoon', label: 'Afternoon' },
+  { id: 'Evening', label: 'Evening' },
 ];
 
-// Priority options
-const priorities = [
-  { id: 'high', label: 'High Priority', color: '#E53935' },
-  { id: 'medium', label: 'Medium Priority', color: '#FB8C00' },
-  { id: 'low', label: 'Low Priority', color: '#43A047' },
-];
-
-// Days of week for weekly habits
+// Days of week for habits
 const daysOfWeek = [
-  { id: 0, label: 'Sun' },
-  { id: 1, label: 'Mon' },
-  { id: 2, label: 'Tue' },
-  { id: 3, label: 'Wed' },
-  { id: 4, label: 'Thu' },
-  { id: 5, label: 'Fri' },
-  { id: 6, label: 'Sat' },
+  { id: 'Sunday', label: 'Sun' },
+  { id: 'Monday', label: 'Mon' },
+  { id: 'Tuesday', label: 'Tue' },
+  { id: 'Wednesday', label: 'Wed' },
+  { id: 'Thursday', label: 'Thu' },
+  { id: 'Friday', label: 'Fri' },
+  { id: 'Saturday', label: 'Sat' },
 ];
 
 export default function AddHabitScreen() {
   const router = useRouter();
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   
   const [showTitleModal, setShowTitleModal] = useState(true);
-  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('meditation');
-  const [frequency, setFrequency] = useState('daily');
-  const [selectedMode, setSelectedMode] = useState(mode);
-  const [priority, setPriority] = useState('medium');
-  const [selectedDays, setSelectedDays] = useState([1, 3, 5]); // Default to Mon, Wed, Fri
-  const [preferences, setPreferences] = useState({
-    idealTimeOfDay: '',
-    suggestedDuration: '',
-    notes: ''
-  });
+  const [category, setCategory] = useState('Health');
+  const [priority, setPriority] = useState(2); // Default to medium priority (1=low, 2=med, 3=high)
+  const [preferences, setPreferences] = useState(1); // Preference level
   
-  // Initial prompt for title and description
+  // Days and times state
+  const [selectedDays, setSelectedDays] = useState(['Monday', 'Wednesday', 'Friday']); // Default days
+  const [selectedTimes, setSelectedTimes] = useState(['Morning']); // Default time
+  const [specificTime, setSpecificTime] = useState('08:00'); // Default specific time
+  const [useFlaskBackend, setUseFlaskBackend] = useState(true); // Flag to use Flask backend
+  const [saving, setSaving] = useState(false);
+  
+  // Initial prompt for description
   const handleTitleSubmit = () => {
-    if (title.trim() === '') {
-      Alert.alert('Missing Information', 'Please enter a habit title');
+    if (description.trim() === '') {
+      Alert.alert('Missing Information', 'Please enter a habit description');
       return;
     }
     setShowTitleModal(false);
   };
   
-  const toggleDaySelection = (dayId) => {
-    if (selectedDays.includes(dayId)) {
-      setSelectedDays(selectedDays.filter(id => id !== dayId));
+  // Toggle day selection
+  const toggleDaySelection = (day) => {
+    if (selectedDays.includes(day)) {
+      setSelectedDays(selectedDays.filter(d => d !== day));
     } else {
-      setSelectedDays([...selectedDays, dayId]);
+      setSelectedDays([...selectedDays, day]);
     }
     triggerHaptic('impact');
   };
   
-  const saveHabit = () => {
-    // Validate
-    if (title.trim() === '') {
-      Alert.alert('Missing Information', 'Please enter a habit title');
+  // Toggle time of day selection
+  const toggleTimeSelection = (time) => {
+    if (selectedTimes.includes(time)) {
+      setSelectedTimes(selectedTimes.filter(t => t !== time));
+    } else {
+      setSelectedTimes([...selectedTimes, time]);
+    }
+    triggerHaptic('impact');
+  };
+  
+  const saveHabit = async () => {
+    if (saving) return; // Prevent double submission
+    
+    if (description.trim() === '') {
+      Alert.alert('Missing Information', 'Please enter a habit description');
       return;
     }
     
-    // Create habit data with preferences
-    const habitData = {
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      frequency,
-      mode: selectedMode,
-      priority,
-      preferences: {
-        idealTimeOfDay: preferences.idealTimeOfDay,
-        suggestedDuration: preferences.suggestedDuration ? parseInt(preferences.suggestedDuration, 10) : null,
-        notes: preferences.notes,
-        priority
-      }
-    };
+    if (selectedDays.length === 0) {
+      Alert.alert('Missing Information', 'Please select at least one day');
+      return;
+    }
     
-    // Add days of week for weekly habits
-    if (frequency === 'weekly') {
-      habitData.daysOfWeek = selectedDays;
+    if (selectedTimes.length === 0) {
+      Alert.alert('Missing Information', 'Please select at least one time of day');
+      return;
     }
     
     try {
-      // Create the habit with all data including preferences
-      const newHabit = DataStore.createHabit(habitData);
+      setSaving(true);
       
-      // Trigger haptic feedback safely
+      // Create habit data object
+      const habitData = {
+        desc: description.trim(),
+        priority: priority,
+        preferences: preferences,
+        type: category,
+        time: specificTime,
+        remarks: '' // Initialize with empty remarks
+      };
+      
+      let newHabit;
+      
+      if (useFlaskBackend) {
+        // Try to use Flask/SQLite backend
+        try {
+          // Convert time periods to array of strings
+          const timePeriods = selectedTimes.map(time => time);
+          
+          // Save using Flask backend
+          newHabit = await FlaskServer.createHabit(
+            habitData,
+            selectedDays,
+            timePeriods
+          );
+          
+          console.log('Habit created in Flask backend:', newHabit);
+        } catch (error) {
+          console.error('Error saving to Flask backend:', error);
+          
+          // Fallback to in-memory database
+          setUseFlaskBackend(false);
+          
+          // Create day and time arrays for in-memory DB
+          const habitDays = selectedDays.map(day => ({
+            day: day
+          }));
+          
+          const habitTimes = selectedTimes.map(time => ({
+            time: time
+          }));
+          
+          // Save using in-memory database
+          newHabit = await createHabit(habitData, habitDays, habitTimes);
+        }
+      } else {
+        // Use in-memory database directly
+        const habitDays = selectedDays.map(day => ({
+          day: day
+        }));
+        
+        const habitTimes = selectedTimes.map(time => ({
+          time: time
+        }));
+        
+        newHabit = await createHabit(habitData, habitDays, habitTimes);
+      }
+      
+      // Trigger success haptic feedback
       triggerHaptic('success');
       
       // Navigate back
       router.back();
     } catch (error) {
       console.error('Error creating habit:', error);
-      Alert.alert('Error', 'Unable to create habit');
+      Alert.alert('Error', 'Unable to create habit. Please try again.');
+      setSaving(false);
     }
   };
   
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Title & Description Modal */}
+      {/* Description Modal */}
       <Modal
         visible={showTitleModal}
         animationType="slide"
@@ -165,7 +216,7 @@ export default function AddHabitScreen() {
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>New Habit</Text>
             
-            <Text style={[styles.modalLabel, { color: theme.text }]}>Title *</Text>
+            <Text style={[styles.modalLabel, { color: theme.text }]}>Description *</Text>
             <TextInput
               style={[styles.modalInput, { 
                 backgroundColor: theme.background,
@@ -173,25 +224,10 @@ export default function AddHabitScreen() {
               }]}
               placeholder="What habit do you want to build?"
               placeholderTextColor={theme.text + '70'}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={50}
-              autoFocus
-            />
-            
-            <Text style={[styles.modalLabel, { color: theme.text }]}>Description (Optional)</Text>
-            <TextInput
-              style={[styles.modalTextArea, { 
-                backgroundColor: theme.background,
-                color: theme.text, 
-              }]}
-              placeholder="Add details about this habit..."
-              placeholderTextColor={theme.text + '70'}
               value={description}
               onChangeText={setDescription}
-              multiline={true}
-              numberOfLines={4}
-              maxLength={200}
+              maxLength={50}
+              autoFocus
             />
             
             <TouchableOpacity
@@ -223,40 +259,27 @@ export default function AddHabitScreen() {
             Create New Habit
           </Text>
           <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: theme.primary }]}
+            style={[styles.saveButton, { 
+              backgroundColor: saving ? theme.primary + '80' : theme.primary 
+            }]}
             onPress={saveHabit}
+            disabled={saving}
           >
-            <Text style={styles.saveButtonText}>Save</Text>
+            <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
           </TouchableOpacity>
         </View>
         
         <View style={styles.formSection}>
-          <Text style={[styles.label, { color: theme.text }]}>Habit Title</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Habit Description</Text>
           <TextInput
             style={[styles.input, { 
               backgroundColor: theme.card,
               color: theme.text,
               borderColor: theme.text + '20'
             }]}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={50}
-          />
-        </View>
-        
-        <View style={styles.formSection}>
-          <Text style={[styles.label, { color: theme.text }]}>Description (Optional)</Text>
-          <TextInput
-            style={[styles.textArea, { 
-              backgroundColor: theme.card,
-              color: theme.text, 
-              borderColor: theme.text + '20'
-            }]}
             value={description}
             onChangeText={setDescription}
-            multiline={true}
-            numberOfLines={4}
-            maxLength={200}
+            maxLength={50}
           />
         </View>
         
@@ -295,213 +318,244 @@ export default function AddHabitScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          {useFlaskBackend && (
+            <View style={styles.backendIndicator}>
+              <Ionicons name="server-outline" size={14} color={theme.primary} />
+              <Text style={[styles.backendText, { color: theme.primary }]}>
+                Using SQLite Persistence
+              </Text>
+            </View>
+          )}
         </View>
         
         <View style={styles.formSection}>
-          <Text style={[styles.label, { color: theme.text }]}>Frequency</Text>
-          <View style={styles.frequencyRow}>
-            {frequencies.map(freq => (
+          <Text style={[styles.label, { color: theme.text }]}>Days of Week</Text>
+          <View style={styles.daysContainer}>
+            {daysOfWeek.map(day => (
               <TouchableOpacity
-                key={freq.id}
+                key={day.id}
                 style={[
-                  styles.frequencyItem,
+                  styles.dayItem,
                   { 
-                    backgroundColor: frequency === freq.id 
+                    backgroundColor: selectedDays.includes(day.id) 
                       ? theme.primary 
                       : theme.card,
                   }
                 ]}
-                onPress={() => {
-                  setFrequency(freq.id);
-                  triggerHaptic('impact');
-                }}
+                onPress={() => toggleDaySelection(day.id)}
               >
                 <Text 
                   style={[
-                    styles.frequencyText,
-                    { color: frequency === freq.id ? 'white' : theme.text }
+                    styles.dayText,
+                    { color: selectedDays.includes(day.id) ? 'white' : theme.text }
                   ]}
                 >
-                  {freq.label}
+                  {day.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
         
-        {frequency === 'weekly' && (
-          <View style={styles.formSection}>
-            <Text style={[styles.label, { color: theme.text }]}>Days of Week</Text>
-            <View style={styles.daysContainer}>
-              {daysOfWeek.map(day => (
-                <TouchableOpacity
-                  key={day.id}
+        <View style={styles.formSection}>
+          <Text style={[styles.label, { color: theme.text }]}>Time of Day</Text>
+          <View style={styles.timeContainer}>
+            {timeOfDayOptions.map(timeOption => (
+              <TouchableOpacity
+                key={timeOption.id}
+                style={[
+                  styles.timeItem,
+                  { 
+                    backgroundColor: selectedTimes.includes(timeOption.id) 
+                      ? theme.primary 
+                      : theme.card,
+                  }
+                ]}
+                onPress={() => toggleTimeSelection(timeOption.id)}
+              >
+                <Text 
                   style={[
-                    styles.dayItem,
-                    { 
-                      backgroundColor: selectedDays.includes(day.id) 
-                        ? theme.primary 
-                        : theme.card,
-                    }
+                    styles.timeText,
+                    { color: selectedTimes.includes(timeOption.id) ? 'white' : theme.text }
                   ]}
-                  onPress={() => toggleDaySelection(day.id)}
                 >
-                  <Text 
-                    style={[
-                      styles.dayText,
-                      { color: selectedDays.includes(day.id) ? 'white' : theme.text }
-                    ]}
-                  >
-                    {day.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  {timeOption.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+        </View>
+        
+        <View style={styles.formSection}>
+          <Text style={[styles.label, { color: theme.text }]}>Specific Time</Text>
+          <TextInput
+            style={[styles.input, { 
+              backgroundColor: theme.card,
+              color: theme.text,
+              borderColor: theme.text + '20'
+            }]}
+            placeholder="e.g. 08:00"
+            placeholderTextColor={theme.text + '70'}
+            value={specificTime}
+            onChangeText={setSpecificTime}
+          />
+        </View>
         
         <View style={styles.formSection}>
           <Text style={[styles.label, { color: theme.text }]}>Priority</Text>
-          <View style={styles.optionsList}>
-            {priorities.map(pri => (
-              <TouchableOpacity
-                key={pri.id}
-                style={[
-                  styles.priorityItem,
-                  { 
-                    backgroundColor: priority === pri.id 
-                      ? pri.color 
-                      : theme.card,
-                    borderColor: pri.color,
-                    borderWidth: priority === pri.id ? 0 : 1,
-                  }
-                ]}
-                onPress={() => {
-                  setPriority(pri.id);
-                  triggerHaptic('impact');
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionLabel,
-                    { 
-                      color: priority === pri.id 
-                        ? 'white' 
-                        : theme.text
-                    }
-                  ]}
-                >
-                  {pri.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        
-        <View style={styles.formSection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Preferences</Text>
-          
-          <Text style={[styles.label, { color: theme.text }]}>Ideal Time of Day</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: theme.card,
-              color: theme.text,
-              borderColor: theme.text + '20'
-            }]}
-            placeholder="e.g. Morning, Evening"
-            placeholderTextColor={theme.text + '70'}
-            value={preferences.idealTimeOfDay}
-            onChangeText={(text) => setPreferences({...preferences, idealTimeOfDay: text})}
-          />
-          
-          <Text style={[styles.label, { color: theme.text }]}>Suggested Duration (minutes)</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: theme.card,
-              color: theme.text,
-              borderColor: theme.text + '20'
-            }]}
-            placeholder="e.g. 10, 30, 60"
-            placeholderTextColor={theme.text + '70'}
-            keyboardType="numeric"
-            value={preferences.suggestedDuration}
-            onChangeText={(text) => setPreferences({...preferences, suggestedDuration: text})}
-          />
-          
-          <Text style={[styles.label, { color: theme.text }]}>Notes</Text>
-          <TextInput
-            style={[styles.textArea, { 
-              backgroundColor: theme.card,
-              color: theme.text, 
-              borderColor: theme.text + '20'
-            }]}
-            placeholder="Any additional notes or preferences"
-            placeholderTextColor={theme.text + '70'}
-            value={preferences.notes}
-            onChangeText={(text) => setPreferences({...preferences, notes: text})}
-            multiline={true}
-            numberOfLines={3}
-          />
-        </View>
-        
-        <View style={styles.formSection}>
-          <Text style={[styles.label, { color: theme.text }]}>Mode</Text>
-          <View style={styles.modeRow}>
+          <View style={styles.priorityContainer}>
             <TouchableOpacity
               style={[
-                styles.modeItem,
+                styles.priorityItem,
                 { 
-                  backgroundColor: selectedMode === 'growth' 
-                    ? '#8BC34A' 
+                  backgroundColor: priority === 1 
+                    ? '#43A047' 
                     : theme.card,
+                  borderColor: '#43A047',
+                  borderWidth: priority === 1 ? 0 : 1,
                 }
               ]}
               onPress={() => {
-                setSelectedMode('growth');
+                setPriority(1);
                 triggerHaptic('impact');
               }}
             >
-              <Ionicons 
-                name="leaf" 
-                size={24} 
-                color={selectedMode === 'growth' ? 'white' : '#8BC34A'} 
-              />
-              <Text 
+              <Text
                 style={[
-                  styles.modeText,
-                  { color: selectedMode === 'growth' ? 'white' : '#8BC34A' }
+                  styles.optionLabel,
+                  { color: priority === 1 ? 'white' : theme.text }
                 ]}
               >
-                Growth
+                Low Priority
               </Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={[
-                styles.modeItem,
+                styles.priorityItem,
                 { 
-                  backgroundColor: selectedMode === 'action' 
-                    ? '#FF5722' 
+                  backgroundColor: priority === 2 
+                    ? '#FB8C00' 
+                    : theme.card,
+                  borderColor: '#FB8C00',
+                  borderWidth: priority === 2 ? 0 : 1,
+                }
+              ]}
+              onPress={() => {
+                setPriority(2);
+                triggerHaptic('impact');
+              }}
+            >
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: priority === 2 ? 'white' : theme.text }
+                ]}
+              >
+                Medium Priority
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.priorityItem,
+                { 
+                  backgroundColor: priority === 3 
+                    ? '#E53935' 
+                    : theme.card,
+                  borderColor: '#E53935',
+                  borderWidth: priority === 3 ? 0 : 1,
+                }
+              ]}
+              onPress={() => {
+                setPriority(3);
+                triggerHaptic('impact');
+              }}
+            >
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: priority === 3 ? 'white' : theme.text }
+                ]}
+              >
+                High Priority
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        <View style={styles.formSection}>
+          <Text style={[styles.label, { color: theme.text }]}>Preference Level</Text>
+          <View style={styles.preferenceContainer}>
+            <TouchableOpacity
+              style={[
+                styles.preferenceItem,
+                { 
+                  backgroundColor: preferences === 1 
+                    ? theme.primary 
                     : theme.card,
                 }
               ]}
               onPress={() => {
-                setSelectedMode('action');
+                setPreferences(1);
                 triggerHaptic('impact');
               }}
             >
-              <Ionicons 
-                name="flash" 
-                size={24} 
-                color={selectedMode === 'action' ? 'white' : '#FF5722'} 
-              />
-              <Text 
+              <Text
                 style={[
-                  styles.modeText,
-                  { color: selectedMode === 'action' ? 'white' : '#FF5722' }
+                  styles.optionLabel,
+                  { color: preferences === 1 ? 'white' : theme.text }
                 ]}
               >
-                Action
+                Low
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.preferenceItem,
+                { 
+                  backgroundColor: preferences === 2 
+                    ? theme.primary 
+                    : theme.card,
+                }
+              ]}
+              onPress={() => {
+                setPreferences(2);
+                triggerHaptic('impact');
+              }}
+            >
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: preferences === 2 ? 'white' : theme.text }
+                ]}
+              >
+                Medium
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.preferenceItem,
+                { 
+                  backgroundColor: preferences === 3 
+                    ? theme.primary 
+                    : theme.card,
+                }
+              ]}
+              onPress={() => {
+                setPreferences(3);
+                triggerHaptic('impact');
+              }}
+            >
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: preferences === 3 ? 'white' : theme.text }
+                ]}
+              >
+                High
               </Text>
             </TouchableOpacity>
           </View>
@@ -550,11 +604,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
   input: {
     borderWidth: 1,
     borderRadius: 8,
@@ -562,23 +611,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -5,
   },
   categoryItem: {
-    width: '30%',
-    margin: '1.66%',
+    width: '45%',
+    margin: '2.5%',
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -590,41 +630,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  optionsList: {
+  backendIndicator: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -5,
-  },
-  optionItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginRight: 10,
-    marginBottom: 10,
-  },
-  priorityItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginRight: 10,
-    marginBottom: 10,
-  },
-  optionLabel: {
-    fontWeight: '500',
-  },
-  frequencyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  frequencyItem: {
-    flex: 1,
-    marginHorizontal: 4,
-    paddingVertical: 12,
-    borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    padding: 4,
   },
-  frequencyText: {
-    fontWeight: '500',
+  backendText: {
+    fontSize: 12,
+    marginLeft: 4,
   },
   daysContainer: {
     flexDirection: 'row',
@@ -642,22 +657,47 @@ const styles = StyleSheet.create({
   dayText: {
     fontWeight: 'bold',
   },
-  modeRow: {
+  timeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginVertical: 10,
   },
-  modeItem: {
+  timeItem: {
     flex: 1,
-    flexDirection: 'row',
-    marginHorizontal: 10,
-    paddingVertical: 16,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 5,
   },
-  modeText: {
-    fontWeight: '600',
-    marginLeft: 8,
+  timeText: {
+    fontWeight: 'bold',
+  },
+  priorityContainer: {
+    marginVertical: 10,
+  },
+  priorityItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  preferenceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 10,
+  },
+  preferenceItem: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  optionLabel: {
+    fontWeight: '500',
   },
   modalContainer: {
     flex: 1,
@@ -690,17 +730,6 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 16,
   },
-  modalTextArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    width: '100%',
-    height: 100,
-    marginBottom: 20,
-    textAlignVertical: 'top',
-  },
   modalButton: {
     width: '100%',
     padding: 15,
@@ -716,5 +745,5 @@ const styles = StyleSheet.create({
   modalCancelButton: {
     marginTop: 15,
     padding: 10,
-  },
+  }
 });

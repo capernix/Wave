@@ -4,21 +4,21 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  BackHandler,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    BackHandler,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import DataStore from '../utils/DataStore';
+import { addCompletion, getHabits } from '../database/database';
 
 export default function HabitFocusScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const habitId = params.habitId ? String(params.habitId) : null;
+  const habitId = params.habitId ? parseInt(params.habitId, 10) : null;
   const { theme } = useTheme();
   const [habit, setHabit] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
@@ -30,28 +30,33 @@ export default function HabitFocusScreen() {
   
   // Load habit data
   useEffect(() => {
-    if (habitId) {
-      try {
-        const habitData = DataStore.getHabitById(habitId);
-        if (habitData) {
-          setHabit(habitData);
-        } else {
-          console.error('Habit not found for ID:', habitId);
-          Alert.alert('Error', 'Habit not found');
+    const loadHabit = async () => {
+      if (habitId) {
+        try {
+          const habits = await getHabits();
+          const habitData = habits.find(h => h.habit.id === habitId);
+          if (habitData) {
+            setHabit(habitData.habit);
+          } else {
+            console.error('Habit not found for ID:', habitId);
+            Alert.alert('Error', 'Habit not found');
+            router.replace('/(tabs)/habits');
+          }
+        } catch (error) {
+          console.error('Error loading habit:', error);
+          Alert.alert('Error', 'Failed to load habit data');
           router.replace('/(tabs)/habits');
         }
-      } catch (error) {
-        console.error('Error loading habit:', error);
-        Alert.alert('Error', 'Failed to load habit data');
+      } else {
+        console.error('No habitId provided');
+        Alert.alert('Error', 'No habit selected');
         router.replace('/(tabs)/habits');
       }
-    } else {
-      console.error('No habitId provided');
-      Alert.alert('Error', 'No habit selected');
-      router.replace('/(tabs)/habits');
-    }
+    };
+    
+    loadHabit();
   }, [habitId]);
-  
+
   // Handle back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
@@ -151,11 +156,16 @@ export default function HabitFocusScreen() {
     }
   };
   
-  const completeHabit = () => {
+  const completeHabit = async () => {
     try {
-      // Complete the habit in the data store
+      // Complete the habit in the database
       if (habit && !isCompleted) {
-        DataStore.completeHabit(habit.id);
+        await addCompletion({
+          habit_id: habit.id,
+          completed_at: Date.now(),
+          notes: `Focused for ${formatTime(timeElapsed)}`
+        });
+        
         setIsCompleted(true);
         setIsActive(false);
         
@@ -204,7 +214,7 @@ export default function HabitFocusScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>
-          {isCompleted ? 'Habit Completed!' : habit.title}
+          {isCompleted ? 'Habit Completed!' : habit.desc}
         </Text>
       </View>
       

@@ -293,56 +293,30 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       
       const toValue = newMode === 'growth' ? 0 : 1;
       
-      // Run separate animations with different useNativeDriver settings
-      const animationPromise = new Promise<void>((resolve) => {
-        // Run color animations with useNativeDriver: false
+      // Separate color and transform animations
+      Animated.parallel([
+        // Color animations - must use JS driver
         Animated.timing(transitionProgress, {
           toValue,
           duration: 600,
-          useNativeDriver: false, // Must be false for color interpolation
-        }).start();
-        
-        // Run transform animations with useNativeDriver: true
+          useNativeDriver: false,
+        }),
+        // Transform/opacity animations - can use native driver
         Animated.timing(nativeTransitionProgress, {
           toValue,
           duration: 600,
-          useNativeDriver: true, // Use native driver for transforms
-        }).start(({ finished }) => {
-          resolve();
-        });
+          useNativeDriver: true,
+        })
+      ]).start(({ finished }) => {
+        if (finished) {
+          setMode(newMode);
+          setIsTransitioning(false);
+        }
       });
-      
-      await animationPromise;
-      
-      // Update mode state and finish transition
-      setMode(newMode);
-      setIsTransitioning(false);
-      
-      // Update audio when mode changes
-      if (audioEnabled) {
-        audioManager.playModeAudio(newMode);
-        setIsAudioPlaying(true);
-      }
-      
-      // Save to in-memory preferences
-      userPreferences = {
-        ...userPreferences,
-        currentMode: newMode,
-        lastUpdated: Date.now()
-      };
+
     } catch (error) {
-      // Fallback in case of error - still update the mode
       console.error('Error during mode transition:', error);
-      const newMode = mode === 'growth' ? 'action' : 'growth';
-      setMode(newMode);
       setIsTransitioning(false);
-      
-      // Save to in-memory preferences
-      userPreferences = {
-        ...userPreferences,
-        currentMode: newMode,
-        lastUpdated: Date.now()
-      };
     }
   };
   

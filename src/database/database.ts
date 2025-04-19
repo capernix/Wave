@@ -1,477 +1,332 @@
-import * as SQLite from 'expo-sqlite';
+// In-memory database implementation without SQLite dependencies
+import { v4 as uuidv4 } from 'uuid';
 
-// Database connection - Fixed to use the correct SQLite API for newer versions
-export const db = SQLite.default.openDatabase('habits.db');
-
-// Habit type definition
+// Database interface types - keeping these for compatibility
 export interface Habit {
-  id?: number;
-  title: string;
-  description?: string;
-  category?: string;
-  frequency?: string;
-  mode: 'growth' | 'action';
-  created_at: number;
+  id?: string;
+  desc: string;
+  priority: number;
+  preferences: number;
+  type: 'Health' | 'Learning' | 'Creativity' | 'Productivity';
+  time: string;
+  remarks?: string; // Added remarks field
 }
 
-// Completion type definition
+export interface HabitDay {
+  habitId: string;
+  day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+}
+
+export interface HabitTime {
+  habitId: string;
+  time: 'Morning' | 'Afternoon' | 'Evening';
+}
+
 export interface Completion {
-  id?: number;
-  habit_id: number;
+  id?: string;
+  habit_id: string;
   completed_at: number;
   notes?: string;
 }
 
-// Initialize database tables
-export const initDatabase = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    try {
-      db.transaction(tx => {
-        // Create habits table
-        tx.executeSql(
-          `CREATE TABLE IF NOT EXISTS habits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT,
-            category TEXT,
-            frequency TEXT,
-            mode TEXT NOT NULL,
-            created_at INTEGER NOT NULL
-          );`,
-          [],
-          () => {},
-          (_, error) => {
-            console.error('Error creating habits table:', error);
-            reject(error);
-            return false;
-          }
-        );
-        
-        // Create completions table
-        tx.executeSql(
-          `CREATE TABLE IF NOT EXISTS completions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            habit_id INTEGER,
-            completed_at INTEGER NOT NULL,
-            notes TEXT,
-            FOREIGN KEY (habit_id) REFERENCES habits (id)
-          );`,
-          [],
-          () => {},
-          (_, error) => {
-            console.error('Error creating completions table:', error);
-            reject(error);
-            return false;
-          }
-        );
-        
-        // Create user preferences table
-        tx.executeSql(
-          `CREATE TABLE IF NOT EXISTS user_preferences (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            current_mode TEXT NOT NULL,
-            audio_enabled INTEGER NOT NULL,
-            last_updated INTEGER NOT NULL
-          );`,
-          [],
-          () => {},
-          (_, error) => {
-            console.error('Error creating user_preferences table:', error);
-            reject(error);
-            return false;
-          }
-        );
-        
-        // Check if preferences exist, insert default if not
-        tx.executeSql(
-          `SELECT * FROM user_preferences WHERE id = 1;`,
-          [],
-          (_, { rows }) => {
-            if (rows.length === 0) {
-              // Insert default preferences
-              const now = Date.now();
-              tx.executeSql(
-                `INSERT INTO user_preferences (id, current_mode, audio_enabled, last_updated)
-                 VALUES (1, ?, ?, ?);`,
-                ['growth', 1, now],
-                () => {
-                  resolve();
-                },
-                (_, error) => {
-                  console.error('Error inserting default preferences:', error);
-                  reject(error);
-                  return false;
-                }
-              );
-            } else {
-              resolve();
-            }
-          },
-          (_, error) => {
-            console.error('Error checking preferences:', error);
-            reject(error);
-            return false;
-          }
-        );
-      });
-    } catch (error) {
-      console.error("Database initialization error:", error);
-      reject(error);
-    }
-  });
+export type HabitType = 'Health' | 'Learning' | 'Creativity' | 'Productivity';
+
+// In-memory storage
+const inMemoryDb = {
+  habits: [] as Array<Habit & { id: string }>,
+  habitDays: [] as HabitDay[],
+  habitTimes: [] as HabitTime[],
+  completions: [] as Array<Completion & { id: string }>
 };
 
-// CRUD operations for habits
+// Initialize database (just for API compatibility)
+export const initDatabase = () => {
+  // No initialization needed for in-memory storage
+  console.log('Using in-memory database implementation');
+  return true;
+};
 
-// Create new habit
-export const createHabit = (habit: Habit): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        `INSERT INTO habits (title, description, category, frequency, mode, created_at)
-         VALUES (?, ?, ?, ?, ?, ?);`,
-        [
-          habit.title,
-          habit.description || null,
-          habit.category || null,
-          habit.frequency || null,
-          habit.mode,
-          habit.created_at
-        ],
-        (_, { insertId }) => {
-          resolve(insertId);
-        },
-        (_, error) => {
-          console.error('Error creating habit:', error);
-          reject(error);
-          return false;
-        }
-      );
+// Get database - just for API compatibility
+export const getDatabase = () => {
+  return true;
+};
+
+// Initialize database tables (just for API compatibility)
+export const initDatabaseTables = async (): Promise<void> => {
+  // No tables to create for in-memory storage
+  return Promise.resolve();
+};
+
+// Create new habit with its days and times
+export const createHabit = async (habit: Habit, days: Partial<HabitDay>[], times: Partial<HabitTime>[]): Promise<string> => {
+  // Generate a unique ID
+  const habitId = uuidv4();
+  
+  // Store the habit
+  inMemoryDb.habits.push({
+    ...habit,
+    id: habitId,
+    remarks: habit.remarks || '' // Ensure remarks field exists
+  });
+  
+  // Store habit days
+  days.forEach(day => {
+    inMemoryDb.habitDays.push({
+      habitId,
+      day: day.day as any
     });
   });
-};
-
-// Get all habits
-export const getHabits = (mode?: 'growth' | 'action'): Promise<Habit[]> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      let query = 'SELECT * FROM habits';
-      const params: any[] = [];
-      
-      if (mode) {
-        query += ' WHERE mode = ?';
-        params.push(mode);
-      }
-      
-      query += ' ORDER BY created_at DESC;';
-      
-      tx.executeSql(
-        query,
-        params,
-        (_, { rows }) => {
-          const habits: Habit[] = [];
-          for (let i = 0; i < rows.length; i++) {
-            habits.push(rows.item(i));
-          }
-          resolve(habits);
-        },
-        (_, error) => {
-          console.error('Error getting habits:', error);
-          reject(error);
-          return false;
-        }
-      );
+  
+  // Store habit times
+  times.forEach(time => {
+    inMemoryDb.habitTimes.push({
+      habitId,
+      time: time.time as any
     });
   });
+  
+  return habitId;
 };
 
-// Get habit by ID
-export const getHabitById = (id: number): Promise<Habit | null> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        'SELECT * FROM habits WHERE id = ?;',
-        [id],
-        (_, { rows }) => {
-          if (rows.length > 0) {
-            resolve(rows.item(0));
-          } else {
-            resolve(null);
-          }
-        },
-        (_, error) => {
-          console.error('Error getting habit by ID:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-};
-
-// Update habit
-export const updateHabit = (habit: Habit): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (!habit.id) {
-      reject(new Error('Habit ID is required for update'));
-      return;
-    }
+// Get all habits with their associated days and times
+export const getHabitsWithDetails = async (type?: HabitType): Promise<{habit: Habit, days: HabitDay[], times: HabitTime[]}[]> => {
+  // Filter habits by type if provided
+  const filteredHabits = type
+    ? inMemoryDb.habits.filter(h => h.type === type)
+    : inMemoryDb.habits;
     
-    db.transaction(tx => {
-      tx.executeSql(
-        `UPDATE habits
-         SET title = ?, description = ?, category = ?, frequency = ?, mode = ?
-         WHERE id = ?;`,
-        [
-          habit.title,
-          habit.description || null,
-          habit.category || null,
-          habit.frequency || null,
-          habit.mode,
-          habit.id
-        ],
-        () => {
-          resolve();
-        },
-        (_, error) => {
-          console.error('Error updating habit:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+  // Map habits to include days and times
+  return filteredHabits.map(habit => {
+    const habitId = habit.id;
+    const days = inMemoryDb.habitDays.filter(d => d.habitId === habitId);
+    const times = inMemoryDb.habitTimes.filter(t => t.habitId === habitId);
+    
+    return {
+      habit,
+      days,
+      times
+    };
+  }).sort((a, b) => b.habit.priority - a.habit.priority);
 };
 
-// Delete habit
-export const deleteHabit = (id: number): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      // Delete related completions first
-      tx.executeSql(
-        'DELETE FROM completions WHERE habit_id = ?;',
-        [id],
-        () => {
-          // Then delete the habit
-          tx.executeSql(
-            'DELETE FROM habits WHERE id = ?;',
-            [id],
-            () => {
-              resolve();
-            },
-            (_, error) => {
-              console.error('Error deleting habit:', error);
-              reject(error);
-              return false;
-            }
-          );
-        },
-        (_, error) => {
-          console.error('Error deleting habit completions:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+// Get habits for a specific day and time period
+export const getHabitsForDayAndTime = async (day: string, timeOfDay: string): Promise<Habit[]> => {
+  // Find habit IDs that match the day
+  const habitIdsForDay = inMemoryDb.habitDays
+    .filter(d => d.day === day)
+    .map(d => d.habitId);
+  
+  // Find habit IDs that match the time
+  const habitIdsForTime = inMemoryDb.habitTimes
+    .filter(t => t.time === timeOfDay)
+    .map(t => t.habitId);
+  
+  // Find habits that match both day and time
+  const matchingHabitIds = habitIdsForDay.filter(id => habitIdsForTime.includes(id));
+  
+  // Get the matching habits
+  return inMemoryDb.habits
+    .filter(habit => matchingHabitIds.includes(habit.id))
+    .sort((a, b) => b.priority - a.priority);
 };
 
-// CRUD operations for completions
-
-// Add completion
-export const addCompletion = (completion: Completion): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        `INSERT INTO completions (habit_id, completed_at, notes)
-         VALUES (?, ?, ?);`,
-        [
-          completion.habit_id,
-          completion.completed_at,
-          completion.notes || null
-        ],
-        (_, { insertId }) => {
-          resolve(insertId);
-        },
-        (_, error) => {
-          console.error('Error adding completion:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
+// Add completion record for habit tracking
+export const addCompletion = async (completion: Completion): Promise<string> => {
+  const id = uuidv4();
+  
+  inMemoryDb.completions.push({
+    ...completion,
+    id
   });
+  
+  return id;
+};
+
+// Get habit completion statistics
+export const getHabitStats = async (habitId: string): Promise<{ total: number, streakDays: number }> => {
+  const completions = inMemoryDb.completions
+    .filter(c => c.habit_id === habitId)
+    .sort((a, b) => b.completed_at - a.completed_at);
+  
+  const total = completions.length;
+  let streakDays = 0;
+  let lastDate: Date | null = null;
+  
+  for (const completion of completions) {
+    const completedDate = new Date(completion.completed_at);
+    
+    if (!lastDate) {
+      streakDays = 1;
+      lastDate = completedDate;
+    } else {
+      const dayDiff = Math.round((lastDate.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (dayDiff === 1) {
+        streakDays++;
+        lastDate = completedDate;
+      } else {
+        break;
+      }
+    }
+  }
+  
+  return { total, streakDays };
+};
+
+// Get aggregated habit statistics
+export const getAggregatedStats = async () => {
+  // Calculate type distribution
+  const typeCount: Record<string, number> = {};
+  inMemoryDb.habits.forEach(habit => {
+    typeCount[habit.type] = (typeCount[habit.type] || 0) + 1;
+  });
+  
+  const typeDistribution = Object.keys(typeCount).map(type => ({
+    Type: type,
+    count: typeCount[type]
+  }));
+  
+  // Calculate priority distribution
+  const priorityCount: Record<string, number> = {};
+  inMemoryDb.habits.forEach(habit => {
+    const priority = String(habit.priority);
+    priorityCount[priority] = (priorityCount[priority] || 0) + 1;
+  });
+  
+  const priorityDistribution = Object.keys(priorityCount).map(priority => ({
+    Priority: Number(priority),
+    count: priorityCount[priority]
+  }));
+  
+  // Calculate completion distribution
+  const completionDistribution = inMemoryDb.habits.map(habit => {
+    const habitCompletions = inMemoryDb.completions.filter(c => c.habit_id === habit.id);
+    
+    return {
+      ID: habit.id,
+      Desc: habit.desc,
+      completions: habitCompletions.length
+    };
+  });
+  
+  return {
+    typeDistribution,
+    priorityDistribution,
+    completionDistribution
+  };
+};
+
+// Delete habit and all related records
+export const deleteHabit = async (id: string): Promise<void> => {
+  // Remove habit
+  const habitIndex = inMemoryDb.habits.findIndex(h => h.id === id);
+  if (habitIndex !== -1) {
+    inMemoryDb.habits.splice(habitIndex, 1);
+  }
+  
+  // Remove habit days
+  inMemoryDb.habitDays = inMemoryDb.habitDays.filter(d => d.habitId !== id);
+  
+  // Remove habit times
+  inMemoryDb.habitTimes = inMemoryDb.habitTimes.filter(t => t.habitId !== id);
+  
+  // Remove completions
+  inMemoryDb.completions = inMemoryDb.completions.filter(c => c.habit_id !== id);
+};
+
+// Seed initial habits data
+export const seedHabits = async (): Promise<void> => {
+  // Only seed if there are no habits
+  if (inMemoryDb.habits.length === 0) {
+    // Sample habits data
+    const habits = [
+      {
+        desc: 'Morning Meditation',
+        priority: 3,
+        preferences: 2,
+        type: 'Health' as HabitType,
+        time: '07:00',
+        days: ['Monday', 'Wednesday', 'Friday'],
+        times: ['Morning']
+      },
+      {
+        desc: 'Read a Book',
+        priority: 2,
+        preferences: 1,
+        type: 'Learning' as HabitType,
+        time: '20:00',
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        times: ['Evening']
+      },
+      {
+        desc: 'Exercise',
+        priority: 3,
+        preferences: 2,
+        type: 'Health' as HabitType,
+        time: '18:00',
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        times: ['Evening']
+      }
+    ];
+    
+    // Insert each habit
+    for (const habit of habits) {
+      const habitDays = habit.days.map(day => ({ day }));
+      const habitTimes = habit.times.map(time => ({ time }));
+      
+      await createHabit(
+        {
+          desc: habit.desc,
+          priority: habit.priority,
+          preferences: habit.preferences,
+          type: habit.type,
+          time: habit.time
+        },
+        habitDays,
+        habitTimes
+      );
+    }
+  }
 };
 
 // Get completions for a habit
-export const getCompletions = (habitId: number): Promise<Completion[]> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        'SELECT * FROM completions WHERE habit_id = ? ORDER BY completed_at DESC;',
-        [habitId],
-        (_, { rows }) => {
-          const completions: Completion[] = [];
-          for (let i = 0; i < rows.length; i++) {
-            completions.push(rows.item(i));
-          }
-          resolve(completions);
-        },
-        (_, error) => {
-          console.error('Error getting completions:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+export const getCompletions = async (habitId: string): Promise<Completion[]> => {
+  return inMemoryDb.completions
+    .filter(c => c.habit_id === habitId)
+    .sort((a, b) => b.completed_at - a.completed_at);
 };
 
-// Delete completion
-export const deleteCompletion = (id: number): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        'DELETE FROM completions WHERE id = ?;',
-        [id],
-        () => {
-          resolve();
-        },
-        (_, error) => {
-          console.error('Error deleting completion:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-};
-
-// Get habit stats
-export const getHabitStats = (habitId: number): Promise<{ total: number, streakDays: number }> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        'SELECT COUNT(*) as total FROM completions WHERE habit_id = ?;',
-        [habitId],
-        (_, { rows }) => {
-          const total = rows.item(0).total;
-          
-          // Calculate streak (consecutive days)
-          tx.executeSql(
-            `SELECT completed_at FROM completions 
-             WHERE habit_id = ? 
-             ORDER BY completed_at DESC;`,
-            [habitId],
-            (_, { rows }) => {
-              let streakDays = 0;
-              let lastDate: Date | null = null;
-              
-              for (let i = 0; i < rows.length; i++) {
-                const completedDate = new Date(rows.item(i).completed_at);
-                const currentDateStr = completedDate.toDateString();
-                
-                if (i === 0) {
-                  streakDays = 1;
-                  lastDate = completedDate;
-                } else if (lastDate) {
-                  // Check if this is a different day than the last one we counted
-                  if (currentDateStr !== lastDate.toDateString()) {
-                    // Check if it's the previous day
-                    const dayDiff = Math.round((lastDate.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24));
-                    
-                    if (dayDiff === 1) {
-                      streakDays++;
-                      lastDate = completedDate;
-                    } else {
-                      // Break in the streak
-                      break;
-                    }
-                  }
-                }
-              }
-              
-              resolve({ total, streakDays });
-            },
-            (_, error) => {
-              console.error('Error calculating streak:', error);
-              reject(error);
-              return false;
-            }
-          );
-        },
-        (_, error) => {
-          console.error('Error getting habit stats:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-};
-
-// Seed function to add some initial habits for testing
-export const seedHabits = async (): Promise<void> => {
-  try {
-    // Check if we already have habits
-    const existingHabits = await getHabits();
-    
-    // Only seed if we have no habits
-    if (existingHabits.length === 0) {
-      console.log('Seeding initial habits...');
-      
-      // Growth mode habits
-      await createHabit({
-        title: 'Morning Meditation',
-        description: 'Start your day with 5-10 minutes of mindful meditation',
-        category: 'Mindfulness',
-        frequency: 'Daily',
-        mode: 'growth',
-        created_at: Date.now()
-      });
-      
-      await createHabit({
-        title: 'Gratitude Journal',
-        description: 'Write down 3 things you are grateful for today',
-        category: 'Reflection',
-        frequency: 'Daily',
-        mode: 'growth',
-        created_at: Date.now() - 86400000 // 1 day ago
-      });
-      
-      await createHabit({
-        title: 'Read for Growth',
-        description: 'Read something educational or inspiring for at least 15 minutes',
-        category: 'Learning',
-        frequency: 'Daily',
-        mode: 'growth',
-        created_at: Date.now() - 172800000 // 2 days ago
-      });
-      
-      // Action mode habits
-      await createHabit({
-        title: 'Morning Exercise',
-        description: '10 minutes of high-intensity exercise to start the day',
-        category: 'Exercise',
-        frequency: 'Daily',
-        mode: 'action',
-        created_at: Date.now()
-      });
-      
-      await createHabit({
-        title: 'Task Prioritization',
-        description: 'List and prioritize your top 3 tasks for the day',
-        category: 'Productivity',
-        frequency: 'Daily',
-        mode: 'action',
-        created_at: Date.now() - 86400000 // 1 day ago
-      });
-      
-      console.log('Seed completed successfully');
-    } else {
-      console.log('Database already contains habits, skipping seed');
-    }
-  } catch (error) {
-    console.error('Error seeding habits:', error);
+// New function to update habit remarks
+export const updateHabitRemarks = async (habitId: string, newRemark: string): Promise<string | null> => {
+  // Find the habit
+  const habit = inMemoryDb.habits.find(h => h.id === habitId);
+  
+  if (!habit) {
+    return null;
   }
+  
+  // Update remarks
+  const currentRemarks = habit.remarks || '';
+  
+  // Simple remark combining logic
+  let combinedRemarks = newRemark;
+  
+  if (currentRemarks) {
+    // Avoid duplication by checking if new remark is already part of existing remarks
+    if (!newRemark.toLowerCase().includes(currentRemarks.toLowerCase()) && 
+        !currentRemarks.toLowerCase().includes(newRemark.toLowerCase())) {
+      combinedRemarks = `${currentRemarks}. ${newRemark}`;
+    }
+  }
+  
+  // Truncate to 20 words max
+  const words = combinedRemarks.split(' ');
+  if (words.length > 20) {
+    combinedRemarks = words.slice(0, 20).join(' ');
+  }
+  
+  // Update the habit
+  habit.remarks = combinedRemarks;
+  
+  return combinedRemarks;
 };

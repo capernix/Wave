@@ -242,11 +242,11 @@ const HabitCard: React.FC<HabitCardProps> = ({
               </View>
               
               {/* Preference indicator */}
-              {preferences && preferences.idealTimeOfDay && (
+              {preferences && preferences.idealTimeOfDay && preferences.idealTimeOfDay.time && ( // Add check for .time property
                 <View style={styles.preferenceContainer}>
                   <FontAwesome name="clock-o" size={12} color={textColor} style={styles.preferenceIcon} />
                   <Text style={[styles.preferenceText, { color: textColor }]}>
-                    {preferences.idealTimeOfDay}
+                    {preferences.idealTimeOfDay.time} {/* Access the .time property */}
                   </Text>
                 </View>
               )}

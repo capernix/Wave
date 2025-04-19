@@ -1,7 +1,9 @@
 // API service for interacting with the Flask backend for AI features
 
-// Replace this with your actual Flask backend URL when available
-const API_BASE_URL = 'https://your-flask-api.com/api';
+// Use the local Flask server when running in development mode
+export const API_BASE_URL = __DEV__ 
+  ? 'http://localhost:5000/api'
+  : 'https://your-flask-api.com/api'; // Replace with your production API URL when deploying
 
 /**
  * Analyzes journal text to determine mood and suggested mode
