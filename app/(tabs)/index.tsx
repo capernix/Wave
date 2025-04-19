@@ -1,74 +1,126 @@
-import { Image, StyleSheet, Platform } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import React from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import ModeToggleButton from '../../src/components/ModeToggleButton';
+import ThemedText from '../../src/components/ThemedText';
+import ThemedView from '../../src/components/ThemedView';
+import { useTheme } from '../../src/context/ThemeContext';
+import { generateEncouragementMessage } from '../../src/services/ApiService';
 
 export default function HomeScreen() {
+  const { theme, mode, audioEnabled, toggleAudio } = useTheme();
+  const [message, setMessage] = React.useState<string>('');
+  
+  // Get encouragement message on load and when mode changes
+  React.useEffect(() => {
+    const fetchMessage = async () => {
+      try {
+        const encouragementMsg = await generateEncouragementMessage(mode, 0);
+        setMessage(encouragementMsg);
+      } catch (error) {
+        console.error('Failed to fetch message:', error);
+        setMessage(mode === 'growth' 
+          ? 'Welcome to Growth mode.' 
+          : 'Action mode activated. Let\'s get things done!');
+      }
+    };
+    
+    fetchMessage();
+  }, [mode]);
+  
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <ThemedText variant="header">Wave</ThemedText>
+            <ThemedText variant="caption" style={styles.subtitle}>
+              Rick & Morty Habit Tracker
+            </ThemedText>
+          </View>
+          
+          <View style={styles.modeSection}>
+            <ModeToggleButton size={100} />
+            
+            <View style={styles.messageContainer}>
+              <ThemedText style={styles.messageText}>{message}</ThemedText>
+            </View>
+          </View>
+          
+          <View style={styles.infoSection}>
+            <ThemedText variant="subheader" color="primary">Today's Focus</ThemedText>
+            <ThemedText>
+              {mode === 'growth' 
+                ? 'Focus on mindful growth activities today. Take time to reflect and develop.' 
+                : 'Channel your energy into productive tasks. Take decisive action on your priorities.'}
+            </ThemedText>
+            
+            <View style={styles.audioToggle}>
+              <ThemedText variant="caption">
+                Audio {audioEnabled ? 'On' : 'Off'}
+              </ThemedText>
+              <ThemedText 
+                variant="caption" 
+                color="primary" 
+                style={styles.toggleText}
+                onPress={toggleAudio}
+              >
+                {audioEnabled ? 'Turn off' : 'Turn on'}
+              </ThemedText>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 20,
+  },
+  header: {
+    marginTop: 40,
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  subtitle: {
+    marginTop: 4,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  modeSection: {
+    marginTop: 40,
+    alignItems: 'center',
+  },
+  messageContainer: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  messageText: {
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  infoSection: {
+    marginTop: 40,
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  audioToggle: {
+    flexDirection: 'row',
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  toggleText: {
+    marginLeft: 8,
+    textDecorationLine: 'underline',
   },
 });
