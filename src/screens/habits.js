@@ -1,8 +1,7 @@
-// src/screens/habits.js
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ActivityIndicator, Alert,
   FlatList,
@@ -10,11 +9,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Modal
 } from 'react-native';
-import HabitCard from '../components/HabitCard';
 import { useTheme } from '../context/ThemeContext';
-import DataStore from '../utils/DataStore';
 
 // Helper function to safely trigger haptic feedback
 const triggerHaptic = (type) => {
@@ -22,7 +20,7 @@ const triggerHaptic = (type) => {
   if (Platform.OS === 'web') {
     return;
   }
-  
+
   try {
     if (type === 'impact') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -44,108 +42,70 @@ export default function HabitsScreen() {
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [habitCompletions, setHabitCompletions] = useState({});
-  const [habitPreferences, setHabitPreferences] = useState({});
-  
-  // Load habits based on current mode
-  const loadHabits = () => {
-    const modeHabits = DataStore.getHabitsByMode(mode);
-    
-    // Sort habits by priority (high → medium → low)
-    const priorityOrder = { high: 1, medium: 2, low: 3 };
-    const sortedHabits = [...modeHabits].sort((a, b) => 
-      priorityOrder[a.priority] - priorityOrder[b.priority]
-    );
-    
-    // Load completions for each habit
-    const completions = {};
-    sortedHabits.forEach(habit => {
-      completions[habit.id] = DataStore.getCompletionsForHabit(habit.id);
-    });
-    
-    // Load preferences for each habit
-    const preferences = {};
-    sortedHabits.forEach(habit => {
-      preferences[habit.id] = DataStore.getHabitPreferences(habit.id);
-    });
-    
-    setHabits(sortedHabits);
-    setHabitCompletions(completions);
-    setHabitPreferences(preferences);
-    setLoading(false);
-    setRefreshing(false);
+
+  // Load habits from Flask backend
+  const loadHabits = async () => {
+    try {
+      setLoading(true);
+
+      const response = await fetch('http://localhost:5000/get_habits');
+      const data = await response.json();
+      console.log (JSON.stringify(data, null, 2))
+
+      setHabits(data);
+      setLoading(false);
+      setRefreshing(false);
+    } catch (error) {
+      console.error('Error fetching habits:', error);
+      Alert.alert('Error', 'Could not load habits from the server.');
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
-  
+
   // Initial load
   useEffect(() => {
     loadHabits();
   }, [mode]);
-  
+
   // Handle refresh
   const handleRefresh = () => {
     setRefreshing(true);
     loadHabits();
   };
-  
+
   // Complete a habit
-  const completeHabit = (habitId) => {
-    // Complete the habit
-    DataStore.completeHabit(habitId, '');
-    
-    // Refresh the habit list
-    loadHabits();
-    
-    // Provide haptic feedback (safely)
-    triggerHaptic('success');
-  };
-  
-  // Check if habit was completed today
-  const isCompletedToday = (habitId) => {
-    const todayCompletions = DataStore.getTodayCompletions();
-    return todayCompletions.some(c => c.habitId === habitId);
-  };
-  
-  // Calculate streak for a habit
-  const calculateStreak = (completions) => {
-    if (!completions || completions.length === 0) return 0;
-    
-    // Sort completions by date
-    const sortedCompletions = [...completions].sort(
-      (a, b) => b.completedAt - a.completedAt
-    );
-    
-    // Start from the most recent completion
-    let streak = 1;
-    let currentDate = new Date(sortedCompletions[0].completedAt);
-    
-    for (let i = 1; i < sortedCompletions.length; i++) {
-      const prevDate = new Date(sortedCompletions[i].completedAt);
-      
-      // Check if this completion is the previous day
-      const timeDiff = currentDate.getTime() - prevDate.getTime();
-      const dayDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-      
-      if (dayDiff === 1) {
-        streak++;
-        currentDate = prevDate;
-      } else if (dayDiff > 1) {
-        // Break in the streak
-        break;
-      }
+  const completeHabit = async (habitId) => {
+    try {
+      // Call Flask endpoint to mark habit as completed (replace with actual endpoint)
+      await fetch(`http://localhost:5000/update_habit/${habitId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ completed: true }), // Modify based on your backend logic
+      });
+
+      // Refresh the habit list
+      loadHabits();
+
+      // Provide haptic feedback (safely)
+      triggerHaptic('success');
+    } catch (error) {
+      console.error('Error completing habit:', error);
+      triggerHaptic('error');
     }
-    
-    return streak;
   };
-  
-  // Go to add habit screen - Fixed haptic feedback type
+
+  // Go to add habit screen
   const goToAddHabit = () => {
     // Trigger haptic feedback safely
     triggerHaptic('impact');
-    
+
     // Navigate to add habit screen
     router.push('/add-habit');
   };
-  
+
   // Delete a habit
   const deleteHabit = (habitId) => {
     Alert.alert(
@@ -155,74 +115,149 @@ export default function HabitsScreen() {
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Delete', 
-          onPress: () => {
-            DataStore.deleteHabit(habitId);
-            loadHabits();
-            triggerHaptic('warning');
+          onPress: async () => {
+            try {
+              // Call Flask endpoint to delete habit
+              await fetch(`http://localhost:5000/delete_habit/${habitId}`, {
+                method: 'DELETE',
+              });
+
+              loadHabits();
+              triggerHaptic('warning');
+            } catch (error) {
+              console.error('Error deleting habit:', error);
+              triggerHaptic('error');
+            }
           },
           style: 'destructive'
         }
       ]
     );
   };
-  
-  // Go to habit focus screen
-  const goToHabitFocus = (habitId) => {
-    router.push(`/habit-focus?habitId=${habitId}`);
-  };
-  
-  // Filter habits by frequency
-  const filterHabits = (frequency) => {
-    return habits.filter(habit => habit.frequency === frequency);
-  };
 
-  // Render habit item
-  const renderHabit = ({ item }) => {
-    const completed = isCompletedToday(item.id);
-    const habitCompletionsList = habitCompletions[item.id] || [];
-    const streak = calculateStreak(habitCompletionsList);
-    const preferences = habitPreferences[item.id];
-    
+  // --- HabitBlock component for array-based habits ---
+  const HabitBlockArray = ({ habit, onComplete }) => {
+    const [showModal, setShowModal] = useState(false);
     return (
-      <HabitCard
-        habit={item}
-        completed={completed}
-        streak={streak}
-        preferences={preferences}
-        onToggleComplete={() => completeHabit(item.id)}
-        onPress={() => goToHabitFocus(item.id)}
-      />
+      <>
+        <TouchableOpacity
+          style={styles.habitBlock}
+          onPress={() => setShowModal(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.habitTitle}>{habit[1]}</Text>
+          <TouchableOpacity
+            style={styles.checkButton}
+            onPress={() => onComplete(habit[0])}
+          >
+            <Ionicons name="checkmark-circle-outline" size={28} color="#4CAF50" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+        <Modal
+          visible={showModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalLabel}>Description:</Text>
+              <Text style={styles.modalText}>{habit[2]}</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowModal(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </>
     );
   };
-  
+
+  // --- HabitBlock component ---
+  const HabitBlock = ({ habit, onComplete }) => {
+    const [showModal, setShowModal] = useState(false);
+
+    return (
+      <>
+        <TouchableOpacity
+          style={styles.habitBlock}
+          onPress={() => setShowModal(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.habitTitle}>{habit.name}</Text>
+          <TouchableOpacity
+            style={styles.checkButton}
+            onPress={() => onComplete(habit.id)}
+          >
+            <Ionicons name="checkmark-circle-outline" size={28} color="#4CAF50" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+        <Modal
+          visible={showModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>{habit.name}</Text>
+              <Text style={styles.modalLabel}>Description:</Text>
+              <Text style={styles.modalText}>{habit.description}</Text>
+              <Text style={styles.modalLabel}>Frequency:</Text>
+              <Text style={styles.modalText}>{habit.frequency}</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowModal(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </>
+    );
+  };
+
+  // --- Update renderHabit to display only the enhanced block ---
+  const renderHabit = ({ item }) => (
+    <HabitBlockArray habit={item} onComplete={handleCompleteHabit} />
+  );
+
+  // --- Update handleCompleteHabit for array-based habits ---
+  const handleCompleteHabit = (habitId) => {
+    setHabits(prev => prev.filter(h => h[0] !== habitId));
+    // Optionally, call backend here
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>
           {mode === 'growth' ? 'Growth Habits' : 'Action Habits'}
         </Text>
-        
-        {/* Removed duplicate add button from header */}
       </View>
-      
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={theme.primary} size="large" />
         </View>
       ) : (
         <>
-          {/* Daily Habits Section */}
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Daily Habits
             </Text>
           </View>
-          
+
           <FlatList
-            data={filterHabits('daily')}
+            data={habits} 
             renderItem={renderHabit}
-            keyExtractor={item => 'daily_' + item.id}
             contentContainerStyle={styles.listContent}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
             ListEmptyComponent={() => (
               <View style={styles.emptySection}>
                 <Text style={[styles.emptyText, { color: theme.text + '99' }]}>
@@ -231,21 +266,18 @@ export default function HabitsScreen() {
               </View>
             )}
           />
-          
-          {/* Weekly Habits Section */}
+
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Weekly Habits
             </Text>
           </View>
-          
+
           <FlatList
-            data={filterHabits('weekly')}
+            data={habits.filter(habit => habit[3] === 'weekly')}
             renderItem={renderHabit}
-            keyExtractor={item => 'weekly_' + item.id}
+            keyExtractor={item => 'weekly_' + item[0]}
             contentContainerStyle={styles.listContent}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
             ListEmptyComponent={() => (
               <View style={styles.emptySection}>
                 <Text style={[styles.emptyText, { color: theme.text + '99' }]}>
@@ -274,8 +306,7 @@ export default function HabitsScreen() {
           />
         </>
       )}
-      
-      {/* Keep only this single floating action button */}
+
       <TouchableOpacity 
         style={[styles.floatingButton, { backgroundColor: theme.primary }]}
         onPress={goToAddHabit}
@@ -303,13 +334,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   sectionHeader: {
     paddingHorizontal: 20,
@@ -368,5 +392,68 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
-  }
+  },
+  habitBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginVertical: 8,
+    marginHorizontal: 16,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    justifyContent: 'space-between',
+  },
+  habitTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  checkButton: {
+    marginLeft: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  modalLabel: {
+    fontWeight: 'bold',
+    marginTop: 8,
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  closeButton: {
+    marginTop: 20,
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 });
