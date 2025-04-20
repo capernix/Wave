@@ -64,7 +64,7 @@ const daysOfWeek = [
   { id: 3, label: 'Wednesday' },
   { id: 4, label: 'Thursday' },
   { id: 5, label: 'Friday' },
-  { id: 6, label: 'Sat' },
+  { id: 6, label: 'Saturday' },
 ];
 
 export default function AddHabitScreen() {
@@ -96,33 +96,33 @@ export default function AddHabitScreen() {
     triggerHaptic('impact');
   };
   
-  const saveHabit = () => {
+  const saveHabit = async () => {
     // Create habit data with preferences
-    const habitData = {
-      description: description.trim(),
-      category,
-      priority,
-      preferences: {
-        idealTimeOfDay: preferences.idealTimeOfDay,
-        suggestedDuration: preferences.suggestedDuration ? parseInt(preferences.suggestedDuration, 10) : null,
-        notes: preferences.notes,
-        priority
-      }
-    };
-    
     try {
-      // Create the habit with all data including preferences
-      const newHabit = DataStore.createHabit(habitData);
-      
-      // Trigger haptic feedback safely
+      const eventData = {
+        description: 'Morning Workout',
+        start: '07:00',
+        end: '08:00',
+        days: ['Monday', 'Wednesday', 'Friday'], // Or use abbreviated: ['Mon', 'Wed', 'Fri']
+      };
+    
+      const response = await fetch('http://localhost:5000/schedule_event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventData),
+      });
+    
+      const result = await response.json();
+      console.log('Event scheduled:', result);
       triggerHaptic('success');
-      
-      // Navigate back
       router.back();
     } catch (error) {
-      console.error('Error creating habit:', error);
-      Alert.alert('Error', 'Unable to create habit');
+      console.error('Error scheduling event:', error);
+      triggerHaptic('error');
     }
+    
   };
   
   return (

@@ -14,21 +14,42 @@ export default function TabTwoScreen() {
             borderRadius: 20,
             marginRight: 8
           }}
-          onPress={() => {/* Navigate to chatbot or show chatbot UI */}}
+          onPress={() => fetch('http://localhost:5000/habit-summary')
+          
+          }
         >
           <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Chatbot</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={{
-            backgroundColor: '#007AFF',
-            paddingVertical: 14,
-            paddingHorizontal: 28,
-            borderRadius: 20
-          }}
-          onPress={() => fetch('http://localhost:5000/call-me')}
-        >
-          <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Call Me</Text>
-        </TouchableOpacity>
+  style={{
+    backgroundColor: mode === 'growth' ? theme.primary : theme.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+    marginRight: 8,
+  }}
+  onPress={async () => {
+    try {
+      const response = await fetch('http://localhost:5000/habit-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+, // Add data here if needed
+      });
+      const result = await response.json();
+      console.log('Summary result:', result);
+      // triggerHaptic?.('success');
+    } catch (error) {
+      console.error('Error fetching habit summary:', error);
+      // triggerHaptic?.('error');
+    }
+  }}
+>
+  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Chatbot</Text>
+</TouchableOpacity>
+
       </View>
     </View>
   );
