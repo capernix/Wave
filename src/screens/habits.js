@@ -146,6 +146,8 @@ export default function HabitsScreen() {
           activeOpacity={0.8}
         >
           <Text style={styles.habitTitle}>{habit[1]}</Text>
+          <Text style={styles.habitTitle}>{habit[4]}</Text>
+          <Text style={styles.habitTitle}>{habit[5]}</Text>
           <TouchableOpacity
             style={styles.checkButton}
             onPress={() => onComplete(habit[0])}
